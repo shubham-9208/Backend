@@ -1,8 +1,8 @@
-import { express, urlencoded } from 'express';
+import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
-export const app = express();
+const app = express();
 
 app.use(cors(
     {
@@ -14,13 +14,16 @@ app.use(cors(
 app.use(express.json({ // this is for json data limit and handle json data
     limit: '50mb'
 }));
-
 app.use (express.static('public')) // this is for static file like image css js
-
-app.use(urlencoded( // this is for form data limit and handle data comming from url
+app.use(express.urlencoded( // this is for form data limit and handle data comming from url
     {extended:true, limit:'50mb'}
 ))
-
 app.use(cookieParser()); // ye cookie ko handle karne ke liye use hota hai
+
+
+// import routes
+import userRoute from './routes/user.routes.js';
+
+app.use('/api/v1/users', userRoute); // for calling api on /api/v1/user endpoint we use middleware because we have to call UserRoute from onother file
 
 export { app };
