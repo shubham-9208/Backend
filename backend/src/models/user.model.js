@@ -61,7 +61,7 @@ userShcema.methods.isPasswordCorrect= async function (password) { // here we are
 
 // method to generate access token
 userShcema.methods.generateAccessToken= function(){
-    jwt.sign( // sign is a method of jwt to generate token sign takes 3 arguments payload,secret,expiry in object form
+    return jwt.sign( // sign is a method of jwt to generate token sign takes 3 arguments payload,secret,expiry in object form
         { // payload is the data we want to store in the token
             _id:this._id,// this came from monogo
             userName:this.userName,
@@ -76,7 +76,7 @@ userShcema.methods.generateAccessToken= function(){
 }
 
 userShcema.methods.generateRefressToken=function(){
-    jwt.sign(
+    return jwt.sign(
         {
             _id:this._id,// this came from monogo
         },

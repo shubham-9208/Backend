@@ -5,7 +5,7 @@ import { uploadImagetoCloudinary } from "../utils/Cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
 const registerUser = asynchandler(async (req, res) => {
-   
+
     // getting data from frontend with req.body
     const { fullName, userName, email, password } = req.body
 
@@ -33,9 +33,11 @@ const registerUser = asynchandler(async (req, res) => {
 
     // here cover image is optional that why this code
     let coverImagelocalpath
-    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) { //both working 1 for refrence
         coverImagelocalpath = req.files?.coverImage[0]?.path
     }
+
+    const coverImagelocalpath2 = req.files?.coverImage?.[0]?.path ?? undefined // both working 2
 
     // normal check if not then throw error
     if (!avatarlocalpath) {
@@ -71,17 +73,122 @@ const registerUser = asynchandler(async (req, res) => {
         new ApiResponse(200, userCreated, 'successfully registerd')
     )
 
+    
+    // steps to take register a user
+    //1. get user data from frontend
+    //2. validation of data
+    //3. check if user already exists :username,email
+    //4. take cover imag and avtar upload on cloudinary
+    //5. it give a url take it
+    //6.create user object -> data send to db
+    //7.check user is created or not
+    //8.send data to frontend to show dont give then refresh token and password
 })
 
-export { registerUser }
+const generateAccessRefressToken = async(userID)=>{
+    
+    //accessing the user from User
+    const user = await User.findById(userID)
+
+    // console.log('user for token',user);
+    
+    // holding both in veriable
+    const refreshToken = user.generateRefressToken()
+    const accessToken = user.generateAccessToken()
+
+    // now adding reffresh Token in DB
+    user.refreshToken= refreshToken
+    // now saving in db without validation because we check the validation before
+    await user.save({validateBeforeSave:false})
+
+    // now return both
+    return {refreshToken,accessToken}
+    
+
+}
+
+const loginUser = asynchandler(async(req,res)=>{
+    // steps for user login
+    //1. take data from user req.body
+    //2.checking email and username for validation
+    //3.if validate find the user 
+    //4.user got then check password
+    //5. password match then send refresh & acces token 
+    //6. give in cookies
+
+    
+    const { userName, email, password } = req.body
+
+    if(!(userName || email)){
+        throw new ApiError(400,'userName & email is required')
+    }
+
+    const user = await User.findOne({$or:[{userName},{email}]})
+
+    if(!user) throw new ApiError(404,'user not exist')
+    
+    // validating the password by using bycript we made method in usermodel
+    const userValidate = await user.isPasswordCorrect(password)
+
+    if(!userValidate) throw new ApiError(402, " password is wrong")
+    
+    // by giving id from the db we got access & refresh token bt destructuring
+    const {refreshToken,accessToken} = await generateAccessRefressToken(user._id)
+
+    // now we have to updaate our user because here dont have referesh token because generateAccessRefressTokem we callafter a letter we can call user but it make bd request so we update it and we dont want to send password and refresh token
+    const logedInUser= await User.findById(user._id).select('-password -refreshToken')
+
+    // now  giving in cookie we have download the cookie pareser 
+    // option for only server can edit
+    const option={
+        httpOnly:true,
+        secure:true
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken,option)
+    .cookie("refreshToken", refreshToken,option)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                user:logedInUser, accessToken, refreshToken // we here send this response to refAcss token because of difreent work in frontend
+            },
+            'user Logedin seccessfull'
+        )
+    )
+})
 
 
-// steps to take register a user
-//1. get user data from frontend
-//2. validation of data
-//3. check if user already exists :username,email
-//4. take cover imag and avtar upload on cloudinary
-//5. it give a url take it
-//6.create user object -> data send to db
-//7.check user is created or not
-//8.send data to frontend to show dont give then refresh token and password
+// here we didnt get user data we in this send form to user to fill it then we logout so we get a data fron middleware auth.middleware.js and we use for authenticaton and get refresh and access token
+const logoutUser = asynchandler(async(req,res)=>{
+    // deleting refresh token from db
+    await User.findByIdAndUpdate(
+        req.user?._id, // here we give id to udate  then it take object
+        {
+            $set:{refreshToken:undefined}  // this DB Operater for set data or update
+        },
+        {
+            new:true // this is for after that we got new data not previous token ew got undefine
+        }
+    )
+
+    //now deleting access and refresh token from cookie
+    const option={
+        httpOnly:true,
+        secure:true
+    }
+
+    return res
+    .status(400)
+    .clearCookie("accessToken",option)
+    .clearCookie("refreshToken",option)
+    .json(new ApiResponse(200,{},'user loged out'))
+
+
+
+})
+
+
+export { registerUser,loginUser,logoutUser }

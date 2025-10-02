@@ -1,6 +1,8 @@
 import { Router } from "express"
-import { registerUser } from "../controllers/user.contoller.js";
+import { registerUser,loginUser, logoutUser } from "../controllers/user.contoller.js";
 import { upload } from "../middleweres/Multer.middleware.js";
+import { verifyJWT } from "../middleweres/auth.middleware.js";
+
 
 const router = Router()
 
@@ -17,5 +19,10 @@ router.route("/register").post(
         }
     ]),
     registerUser)
+
+router.route("/login").post(loginUser)
+
+// here just like we are doing jate jate user ki info lekejana login karne ke liye waise hi hum verifyJWT middleware use karenge for authentication
+router.route("/logout").post(verifyJWT,logoutUser)
 
 export default router
