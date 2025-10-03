@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadImagetoCloudinary } from "../utils/Cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
 const registerUser = asynchandler(async (req, res) => {
 
@@ -73,7 +74,7 @@ const registerUser = asynchandler(async (req, res) => {
         new ApiResponse(200, userCreated, 'successfully registerd')
     )
 
-    
+
     // steps to take register a user
     //1. get user data from frontend
     //2. validation of data
@@ -85,29 +86,29 @@ const registerUser = asynchandler(async (req, res) => {
     //8.send data to frontend to show dont give then refresh token and password
 })
 
-const generateAccessRefressToken = async(userID)=>{
-    
+const generateAccessRefressToken = async (userID) => {
+
     //accessing the user from User
     const user = await User.findById(userID)
 
     // console.log('user for token',user);
-    
+
     // holding both in veriable
     const refreshToken = user.generateRefressToken()
     const accessToken = user.generateAccessToken()
 
     // now adding reffresh Token in DB
-    user.refreshToken= refreshToken
+    user.refreshToken = refreshToken
     // now saving in db without validation because we check the validation before
-    await user.save({validateBeforeSave:false})
+    await user.save({ validateBeforeSave: false })
 
     // now return both
-    return {refreshToken,accessToken}
-    
+    return { refreshToken, accessToken }
+
 
 }
 
-const loginUser = asynchandler(async(req,res)=>{
+const loginUser = asynchandler(async (req, res) => {
     // steps for user login
     //1. take data from user req.body
     //2.checking email and username for validation
@@ -116,79 +117,122 @@ const loginUser = asynchandler(async(req,res)=>{
     //5. password match then send refresh & acces token 
     //6. give in cookies
 
-    
+
     const { userName, email, password } = req.body
 
-    if(!(userName || email)){
-        throw new ApiError(400,'userName & email is required')
+    if (!(userName || email)) {
+        throw new ApiError(400, 'userName & email is required')
     }
 
-    const user = await User.findOne({$or:[{userName},{email}]})
+    const user = await User.findOne({ $or: [{ userName }, { email }] })
 
-    if(!user) throw new ApiError(404,'user not exist')
-    
+    if (!user) throw new ApiError(404, 'user not exist')
+
     // validating the password by using bycript we made method in usermodel
     const userValidate = await user.isPasswordCorrect(password)
 
-    if(!userValidate) throw new ApiError(402, " password is wrong")
-    
+    if (!userValidate) throw new ApiError(402, " password is wrong")
+
     // by giving id from the db we got access & refresh token bt destructuring
-    const {refreshToken,accessToken} = await generateAccessRefressToken(user._id)
+    const { refreshToken, accessToken } = await generateAccessRefressToken(user._id)
 
     // now we have to updaate our user because here dont have referesh token because generateAccessRefressTokem we callafter a letter we can call user but it make bd request so we update it and we dont want to send password and refresh token
-    const logedInUser= await User.findById(user._id).select('-password -refreshToken')
+    const logedInUser = await User.findById(user._id).select('-password -refreshToken')
 
     // now  giving in cookie we have download the cookie pareser 
     // option for only server can edit
-    const option={
-        httpOnly:true,
-        secure:true
+    const option = {
+        httpOnly: true,
+        secure: true
     }
 
     return res
-    .status(200)
-    .cookie("accessToken", accessToken,option)
-    .cookie("refreshToken", refreshToken,option)
-    .json(
-        new ApiResponse(
-            200,
-            {
-                user:logedInUser, accessToken, refreshToken // we here send this response to refAcss token because of difreent work in frontend
-            },
-            'user Logedin seccessfull'
+        .status(200)
+        .cookie("accessToken", accessToken, option)
+        .cookie("refreshToken", refreshToken, option)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user: logedInUser, accessToken, refreshToken // we here send this response to refAcss token because of difreent work in frontend
+                },
+                'user Logedin seccessfull'
+            )
         )
-    )
 })
 
 
-// here we didnt get user data we in this send form to user to fill it then we logout so we get a data fron middleware auth.middleware.js and we use for authenticaton and get refresh and access token
-const logoutUser = asynchandler(async(req,res)=>{
+const logoutUser = asynchandler(async (req, res) => {
+    // here we didnt get user data we in this send form to user to fill it then we logout so we get a data fron middleware auth.middleware.js and we use for authenticaton and get refresh and access token
+
+
     // deleting refresh token from db
     await User.findByIdAndUpdate(
         req.user?._id, // here we give id to udate  then it take object
         {
-            $set:{refreshToken:undefined}  // this DB Operater for set data or update
+            $set: { refreshToken: undefined }  // this DB Operater for set data or update
         },
         {
-            new:true // this is for after that we got new data not previous token ew got undefine
+            new: true // this is for after that we got new data not previous token ew got undefine
         }
     )
 
     //now deleting access and refresh token from cookie
-    const option={
-        httpOnly:true,
-        secure:true
+    const option = {
+        httpOnly: true,
+        secure: true
     }
 
     return res
-    .status(400)
-    .clearCookie("accessToken",option)
-    .clearCookie("refreshToken",option)
-    .json(new ApiResponse(200,{},'user loged out'))
+        .status(400)
+        .clearCookie("accessToken", option)
+        .clearCookie("refreshToken", option)
+        .json(new ApiResponse(200, {}, 'user loged out'))
 
 
 
 })
 
+const generatenewToken = asynchandler(async (req, res) => {
+    // we generate new token for login user dont do login repetatly after access token expire and then frontend hit the endpoint for new token that wirrten in route
 
-export { registerUser,loginUser,logoutUser }
+    // in this we take a token from cookie of user
+    const incommingtoken = req.cookies?.refreshToken || req.body?.refreshToken
+    if (!incommingtoken) throw new ApiError(400, 'refresh token is invalid')
+
+    try {
+        // verift the token and then decoded data of user in return of user
+        const decoded = jwt.verify(incommingtoken, process.env.REFRESH_TOKEN_SECRET)
+
+        //find the user in DB
+        const user = await User.findById(decoded._id)
+        if (!user) throw new ApiError(400, 'user not found')
+
+        // if not match both user token of bd and incommingdata   
+        if (incommingtoken !== user) throw new ApiError(400, 'refresh token is expired')
+
+        const option = {
+            httpOnly: true,
+            secure: true
+        }
+
+        //if match then genrate new token from above written function and send response in cookie 
+        const { refreshToken, accessToken } = await generateAccessRefressToken(user._id)
+        return res
+            .status(200)
+            .cookie('refreshToken', refreshToken, option)
+            .cookie('accessToken', accessToken, option) // and here i think we should save refeshtoken in db also for next time genrating token
+            .json(
+                new ApiResponse(
+                    200,
+                    { accessToken, refreshToken },
+                    'genrated new tokens'
+                )
+            )
+    } catch (error) {
+        throw new ApiError(401, error?.message || 'unauthorized access')
+    }
+
+
+})
+export { registerUser, loginUser, logoutUser, generatenewToken }
