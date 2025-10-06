@@ -167,7 +167,6 @@ const loginUser = asynchandler(async (req, res) => {
         )
 })
 
-
 const logoutUser = asynchandler(async (req, res) => {
     // here we didnt get user data we in this send form to user to fill it then we logout so we get a data fron middleware auth.middleware.js and we use for authenticaton and get refresh and access token
 
@@ -269,12 +268,91 @@ const changePassword = asynchandler(async (req, res) => {
         .json(new ApiResponse(200, {}, 'password change'))
 })
 
-const getCUrrentUser= asynchandler(async(req,res)=>{
-    if(!req.user) throw new ApiError(404,'user not found')
+const getCurrentUser = asynchandler(async (req, res) => {
+    if (!req.user) throw new ApiError(404, 'user not found')
     console.log(req.user);
     return res
-    .status(200)
-    .json(200,req.user,`Current user is ${req.user.userName}` )
+        .status(200)
+        .json(200, req.user, `Current user is ${req.user.userName}`)
 })
 
-export { registerUser, loginUser, logoutUser, generatenewToken, changePassword,getCUrrentUser }
+const updateUserDetails= asynchandler (async (req,res)=>{
+    const {userName,fullName}=req.body
+
+    if(!userName || !fullName) throw new ApiError(400,'all fields are required')
+
+    const user= await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{ //we only what one to change not whole object so we use set
+                userName,
+                fullName
+            }
+        },
+        {new:true}
+    ).select('-password -refreshToken')
+
+    return res
+    .status(200)
+    .json(
+        200,user,"user is updated"
+    )
+})
+
+const updateAvatarImg= asynchandler(async(req,res)=>{
+    const avatarlocalpath = req.file?.path
+
+    if(!avatarlocalpath) throw new ApiError(400,'avatar img is required')
+    
+    const avatar = uploadImagetoCloudinary(avatarlocalpath)
+
+    if(!avatar) throw new ApiError(400,'error on img uploading of avatar')
+    
+    await User.findByIdAndUpdate(req.user?._id,
+
+        {
+            $set:{
+                avatar:avatar?.url
+            }
+        },
+        {new:true}
+    ).select('-password -refreshToken')
+
+    return res
+    .status(200)
+    .json(
+        200,{},'Avatar is updated'
+    )
+    
+    
+})
+
+const updateCoverImg= asynchandler(async(req,res)=>{
+    const coverImagelocalpath = req.file?.path
+
+    if(!coverImagelocalpath) throw new ApiError(400,'avatar img is required')
+    
+    const coverImage = uploadImagetoCloudinary(coverImagelocalpath)
+
+    if(!coverImage) throw new ApiError(400,'error on img uploading of avatar')
+    
+    await User.findByIdAndUpdate(req.user?._id,
+
+        {
+            $set:{
+                coverImage:coverImage?.url
+            }
+        },
+        {new:true}
+    ).select('-password -refreshToken')
+
+    return res
+    .status(200)
+    .json(
+        200,{},'Avatar is updated'
+    )
+    
+    
+})
+
+export { registerUser, loginUser, logoutUser, generatenewToken, changePassword, getCurrentUser,updateUserDetails,updateAvatarImg,updateCoverImg
