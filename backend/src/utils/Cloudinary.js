@@ -19,7 +19,7 @@ const uploadImagetoCloudinary = async (filePath) => {
 
     } catch (error) {
         fs.unlinkSync(filePath) // remove file from local uploads folder for our server cleanup and fs is filesystem module it comes with nodejs by default unlinkSync is used to delete file synchronously means hona hi chiye ye
-        console.log('error while uploading file to cloudinary', error);
+        console.log('error while uploading file to cloudinary', error + 'clodinary');
         return null
     }
 }

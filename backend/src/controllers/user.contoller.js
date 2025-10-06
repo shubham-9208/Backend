@@ -9,6 +9,8 @@ const registerUser = asynchandler(async (req, res) => {
 
     // getting data from frontend with req.body
     const { fullName, userName, email, password } = req.body
+    // console.log(req.body);
+
 
     // validation of data It returns a boolean (true or false) test if any element matches condition ,
     // map returns a new array with the results
@@ -22,6 +24,8 @@ const registerUser = asynchandler(async (req, res) => {
     //Return one where either the userName matches OR the email matches.
     const existedUser = await User.findOne({ $or: [{ userName }, { email }] })
     // const existedUser=User.findOne({userName} && {email}) wil not work
+    // console.log(existedUser);
+
 
     if (existedUser) {
         throw new ApiError(409, "user already exists")
@@ -30,6 +34,7 @@ const registerUser = asynchandler(async (req, res) => {
     // take cover imag and avtar upload on cloudinary 
     // here we use multer as a middleware to upload a file middleware here add more filds in req like here we have req.files
     const avatarlocalpath = req.files?.avatar[0]?.path // this is not in cloud this is now in our local we say to multer to save the file in our public avatar is name of our file to take it written in upload files in in user.router
+    // console.log(avatarlocalpath,'path');
 
 
     // here cover image is optional that why this code
@@ -44,6 +49,7 @@ const registerUser = asynchandler(async (req, res) => {
     if (!avatarlocalpath) {
         throw new ApiError(400, 'avatar img required')
     }
+    // console.log(avatarImg,coverImage);
 
     // upload on cloudinary
     const avatarImg = await uploadImagetoCloudinary(avatarlocalpath)
@@ -235,4 +241,40 @@ const generatenewToken = asynchandler(async (req, res) => {
 
 
 })
-export { registerUser, loginUser, logoutUser, generatenewToken }
+
+const changePassword = asynchandler(async (req, res) => {
+    // password is taken 
+    const { oldPassword, newPassword } = req.body
+
+    // check password is there or not
+    if (!oldPassword || !newPassword) throw new ApiError(400, 'all fields are required')
+
+    // now finding user detail from DB user we get data of user
+    const user = await User.findById(req.user._id)
+
+    // check password is correct or not user.isPasswordCorrect object is written in user.model it return boolean
+    const isPasswordcorrect = await user.isPasswordCorrect(oldPassword)
+
+    if (!isPasswordcorrect) throw new ApiError(400, 'password is incorrect')
+
+    // now the password is correct we set new password 
+    user.password = newPassword
+
+    //here we save the password in DB
+    await user.save({ validateBeforeSave: false })
+
+    //sending response after saving the data
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, 'password change'))
+})
+
+const getCUrrentUser= asynchandler(async(req,res)=>{
+    if(!req.user) throw new ApiError(404,'user not found')
+    console.log(req.user);
+    return res
+    .status(200)
+    .json(200,req.user,`Current user is ${req.user.userName}` )
+})
+
+export { registerUser, loginUser, logoutUser, generatenewToken, changePassword,getCUrrentUser }
