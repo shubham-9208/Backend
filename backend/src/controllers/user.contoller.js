@@ -355,4 +355,4 @@ const updateCoverImg= asynchandler(async(req,res)=>{
     
 })
 
-export { registerUser, loginUser, logoutUser, generatenewToken, changePassword, getCurrentUser,updateUserDetails,updateAvatarImg,updateCoverImg
+export { registerUser, loginUser, logoutUser, generatenewToken, changePassword, getCurrentUser,updateUserDetails,updateAvatarImg,updateCoverImg}
